@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Zero-knowledge encrypted cloud storage">
+    <title>🔐 SecureCloud - End-to-End Encrypted Storage</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<!-- Loading Overlay -->
+<div id="loading-overlay" class="overlay hidden">
+    <div class="loader">
+        <div class="spinner"></div>
+        <p id="loading-text">Processing...</p>
+    </div>
+</div>
+
+<!-- Authentication Screen -->
+<div id="auth-screen" class="screen active">
+    <div class="auth-container">
+        <div class="auth-header">
+            <h1>🔐 SecureCloud</h1>
+            <p class="subtitle">End-to-End Encrypted Storage</p>
+            <div class="security-badge">
+                🔒 Zero-knowledge encryption<br>
+                <small>Your data is encrypted in your browser. We never see your files.</small>
+            </div>
+        </div>
+
+        <!-- Login Form -->
+        <div id="login-form" class="auth-form active">
+            <h2>Welcome Back</h2>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="login-username">Username</label>
+                    <input type="text" id="login-username" required autocomplete="username">
+                </div>
+                <div class="form-group">
+                    <label for="login-password">Master Password</label>
+                    <input type="password" id="login-password" required autocomplete="current-password">
+                </div>
+                <button type="submit" class="btn btn-primary">Login</button>
+            </form>
+            <p class="auth-switch">
+                Don't have an account?
+                <a href="#" id="show-register">Create one</a>
+            </p>
+        </div>
+
+        <!-- Register Form -->
+        <div id="register-form" class="auth-form">
+            <h2>Create Account</h2>
+            <form id="registerForm">
+                <div class="form-group">
+                    <label for="register-username">Username</label>
+                    <input type="text" id="register-username" required
+                           pattern="[a-zA-Z0-9_]{3,20}"
+                           title="3-20 characters (letters, numbers, underscore)">
+                </div>
+                <div class="form-group">
+                    <label for="register-email">Email</label>
+                    <input type="email" id="register-email" required>
+                </div>
+                <div class="form-group">
+                    <label for="register-password">Master Password</label>
+                    <input type="password" id="register-password" required minlength="8">
+                    <small>Minimum 8 characters</small>
+                </div>
+                <div class="form-group">
+                    <label for="register-confirm">Confirm Password</label>
+                    <input type="password" id="register-confirm" required>
+                </div>
+                <div class="warning-box">
+                    ⚠️ <strong>Important:</strong> Your master password encrypts your private key.
+                    If you lose it, your files <strong>cannot be recovered</strong>.
+                </div>
+                <button type="submit" class="btn btn-primary">Create Account</button>
+            </form>
+            <p class="auth-switch">
+                Already have an account?
+                <a href="#" id="show-login">Login</a>
+            </p>
+        </div>
+    </div>
+</div>
+
+<!-- Main Application Screen -->
+<div id="app-screen" class="screen">
+    <!-- Navigation Bar -->
+    <nav class="navbar">
+        <div class="nav-brand">
+            <h1>🔐 SecureCloud</h1>
+        </div>
+        <div class="nav-user">
+            <span id="user-info">Loading...</span>
+            <button id="logout-btn" class="btn btn-secondary">Logout</button>
+        </div>
+    </nav>
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar-nav">
+            <button class="nav-item active" data-view="files">
+                📁 My Files
+            </button>
+            <button class="nav-item" data-view="shared">
+                👥 Shared with Me
+            </button>
+            <button class="nav-item" data-view="audit">
+                📊 Audit Logs
+            </button>
+            <button class="nav-item" data-view="stats">
+                📈 Statistics
+            </button>
+        </div>
+        <div class="sidebar-footer">
+            <div class="storage-info">
+                <small>Storage Used</small>
+                <div class="storage-bar">
+                    <div class="storage-fill" style="width: 0%"></div>
+                </div>
+                <small id="storage-text">0 MB</small>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Files View -->
+        <div id="files-view" class="view active">
+            <div class="view-header">
+                <h2>My Files</h2>
+                <div class="view-actions">
+                    <button id="refresh-files-btn" class="btn btn-secondary">
+                        🔄 Refresh
+                    </button>
+                </div>
+            </div>
+
+            <!-- Upload Area -->
+            <div id="upload-area" class="upload-area">
+                <input type="file" id="file-input" hidden multiple>
+                <div class="upload-content">
+                    <div class="upload-icon">📤</div>
+                    <p class="upload-title">Drag & Drop Files Here</p>
+                    <p class="upload-subtitle">or click to browse</p>
+                    <button id="select-files-btn" class="btn btn-primary">
+                        Select Files
+                    </button>
+                </div>
+            </div>
+
+            <!-- Files List -->
+            <div class="files-container">
+                <div class="table-controls">
+                    <input type="text" id="file-search" placeholder="Search files..." class="search-input">
+                    <select id="file-sort" class="sort-select">
+                        <option value="created_at-DESC">Latest First</option>
+                        <option value="created_at-ASC">Oldest First</option>
+                        <option value="file_name-ASC">Name (A-Z)</option>
+                        <option value="file_name-DESC">Name (Z-A)</option>
+                        <option value="file_size-DESC">Largest First</option>
+                        <option value="file_size-ASC">Smallest First</option>
+                    </select>
+                </div>
+                <div id="files-list" class="files-list">
+                    <!-- Files will be dynamically loaded here -->
+                </div>
+                <div id="files-pagination" class="pagination">
+                    <!-- Pagination will be added here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Shared Files View -->
+        <div id="shared-view" class="view">
+            <div class="view-header">
+                <h2>Files Shared with Me</h2>
+                <div class="view-actions">
+                    <button id="refresh-shared-btn" class="btn btn-secondary">
+                        🔄 Refresh
+                    </button>
+                </div>
+            </div>
+            <div id="shared-files-list" class="files-list">
+                <!-- Shared files will be loaded here -->
+            </div>
+        </div>
+
+        <!-- Audit Logs View -->
+        <div id="audit-view" class="view">
+            <div class="view-header">
+                <h2>Audit Logs</h2>
+                <div class="view-actions">
+                    <button id="export-audit-btn" class="btn btn-secondary">
+                        📥 Export CSV
+                    </button>
+                    <button id="refresh-audit-btn" class="btn btn-secondary">
+                        🔄 Refresh
+                    </button>
+                </div>
+            </div>
+            <div class="audit-controls">
+                <select id="audit-action-filter" class="filter-select">
+                    <option value="">All Actions</option>
+                    <option value="FILE_UPLOAD">Upload</option>
+                    <option value="FILE_DOWNLOAD">Download</option>
+                    <option value="FILE_DELETE">Delete</option>
+                    <option value="FILE_SHARE">Share</option>
+                    <option value="SHARE_REVOKE">Revoke</option>
+                    <option value="LOGIN_SUCCESS">Login</option>
+                </select>
+                <input type="date" id="audit-start-date" class="date-input">
+                <input type="date" id="audit-end-date" class="date-input">
+            </div>
+            <div id="audit-logs-list" class="audit-list">
+                <!-- Audit logs will be loaded here -->
+            </div>
+        </div>
+
+        <!-- Statistics View -->
+        <div id="stats-view" class="view">
+            <div class="view-header">
+                <h2>Statistics & Analytics</h2>
+                <div class="view-actions">
+                    <button id="refresh-stats-btn" class="btn btn-secondary">
+                        🔄 Refresh
+                    </button>
+                </div>
+            </div>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h3>Files</h3>
+                    <div class="stat-value" id="stat-files">0</div>
+                    <div class="stat-label">Total Files</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Storage</h3>
+                    <div class="stat-value" id="stat-storage">0 MB</div>
+                    <div class="stat-label">Total Size</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Shares</h3>
+                    <div class="stat-value" id="stat-shares">0</div>
+                    <div class="stat-label">Active Shares</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Security</h3>
+                    <div class="stat-value" id="stat-avalanche">0%</div>
+                    <div class="stat-label">Avg Avalanche Effect</div>
+                </div>
+            </div>
+            <div class="stats-section">
+                <h3>Action Breakdown</h3>
+                <div id="action-breakdown" class="action-list">
+                    <!-- Action breakdown will be loaded here -->
+                </div>
+            </div>
+            <div class="stats-section">
+                <h3>Encryption Metrics</h3>
+                <div id="encryption-metrics" class="metrics-grid">
+                    <!-- Metrics will be loaded here -->
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- Share Modal -->
+<div id="share-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Share File</h3>
+            <button class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <form id="shareForm">
+                <input type="hidden" id="share-file-id">
+                <div class="form-group">
+                    <label for="share-username">Recipient Username</label>
+                    <input type="text" id="share-username" required>
+                </div>
+                <div class="form-group">
+                    <label for="share-permissions">Permissions</label>
+                    <select id="share-permissions">
+                        <option value="read">Read Only</option>
+                        <option value="write">Read & Write</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary">Share File</button>
+            </form>
+            <div class="shares-list">
+                <h4>Current Shares</h4>
+                <div id="current-shares">
+                    <!-- Current shares will be loaded here -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- File Versions Modal -->
+<div id="versions-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>File Versions</h3>
+            <button class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div id="versions-list">
+                <!-- Versions will be loaded here -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Notifications -->
+<div id="toast-container" class="toast-container"></div>
+
+<!-- Scripts -->
+<script src="config.js"></script>
+<script src="js/api.js"></script>
+<script src="js/crypto.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/files.js"></script>
+<script src="js/shares.js"></script>
+<script src="js/audit.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
