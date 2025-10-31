@@ -37,10 +37,20 @@ router.post('/upload', authenticate, uploadLimiter, upload.single('file'), async
     const startTime = Date.now();
 
     try {
+        // Debug logging
+        console.log('Upload request received');
+        console.log('File:', req.file ? 'Present' : 'Missing');
+        console.log('Body keys:', Object.keys(req.body));
+
         if (!req.file) {
+            console.error('No file in request');
             return res.status(400).json({
                 error: 'No file provided',
-                code: 'NO_FILE'
+                code: 'NO_FILE',
+                debug: {
+                    hasFile: !!req.file,
+                    bodyKeys: Object.keys(req.body)
+                }
             });
         }
 
@@ -52,27 +62,42 @@ router.post('/upload', authenticate, uploadLimiter, upload.single('file'), async
             mimeType
         } = req.body;
 
+        console.log('Upload details:', { fileName, mimeType, size: req.file.size });
+
         // Validate required fields
         if (!fileName || !encryptedFileName || !encryptedSymmetricKey || !signature) {
+            console.error('Missing required fields:', {
+                fileName: !!fileName,
+                encryptedFileName: !!encryptedFileName,
+                encryptedSymmetricKey: !!encryptedSymmetricKey,
+                signature: !!signature
+            });
+
             return res.status(400).json({
                 error: 'Missing required fields',
-                code: 'MISSING_FIELDS'
+                code: 'MISSING_FIELDS',
+                required: ['fileName', 'encryptedFileName', 'encryptedSymmetricKey', 'signature'],
+                received: Object.keys(req.body)
             });
         }
 
         const fileBuffer = req.file.buffer;
         const fileSize = req.file.size;
 
+        console.log('Analyzing encryption...');
+
         // Analyze encryption quality
         const cryptoMetrics = analyzeEncryptionQuality(fileBuffer);
 
         // Generate unique S3 key
         const fileId = generateFileId();
-        const s3Key = `files/${req.user.userId}/${fileId}`;
+        const s3Key = `files_${req.user.userId}_${fileId}`;
 
+        console.log('Starting database transaction...');
         await client.query('BEGIN');
 
-        // Upload to S3
+        console.log('Uploading to storage...');
+        // Upload to storage
         const uploadResult = await timeCryptoOperation(
             () => uploadFile(fileBuffer, s3Key, {
                 userId: req.user.userId,
@@ -80,6 +105,8 @@ router.post('/upload', authenticate, uploadLimiter, upload.single('file'), async
                 mimeType: mimeType || 'application/octet-stream'
             })
         );
+
+        console.log('Upload successful, saving to database...');
 
         // Store file metadata in database
         const fileResult = await client.query(`
@@ -136,6 +163,8 @@ router.post('/upload', authenticate, uploadLimiter, upload.single('file'), async
 
         const totalTime = Date.now() - startTime;
 
+        console.log(`✓ Upload complete: ${fileName} (${totalTime}ms)`);
+
         // Log audit with crypto metrics
         await logAudit({
             userId: req.user.userId,
@@ -178,6 +207,7 @@ router.post('/upload', authenticate, uploadLimiter, upload.single('file'), async
     } catch (error) {
         await client.query('ROLLBACK');
         console.error('File upload error:', error);
+        console.error('Error stack:', error.stack);
 
         await logAudit({
             userId: req.user.userId,
@@ -191,7 +221,8 @@ router.post('/upload', authenticate, uploadLimiter, upload.single('file'), async
         res.status(500).json({
             error: 'File upload failed',
             code: 'UPLOAD_ERROR',
-            details: error.message
+            details: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
         });
     } finally {
         client.release();
