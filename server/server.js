@@ -88,6 +88,27 @@ app.get('/*', (req, res) => {
  * GET /
  * Root endpoint - API information
  */
+
+/**
+ * Manual database initialization endpoint
+ */
+app.get('/init-db', async (req, res) => {
+    try {
+        await initializeDatabase();
+        res.json({
+            success: true,
+            message: 'Database initialized successfully'
+        });
+    } catch (error) {
+        console.error('Manual DB init error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            stack: error.stack
+        });
+    }
+});
+
 app.get('/', (req, res) => {
     res.json({
         name: 'Secure Cloud Storage API',
@@ -483,29 +504,44 @@ app.use((error, req, res, next) => {
 
 /**
  * Initialize server
+ *//**
+ * Initialize server
  */
 async function startServer() {
     try {
         console.log('🚀 Starting Secure Cloud Storage Server...');
         console.log(`📍 Environment: ${config.NODE_ENV}`);
+        console.log(`📍 Port: ${config.PORT}`);
 
-        // Initialize database
-        await initializeDatabase();
-
-        // Test S3 connection
-        const s3Connected = await testConnection();
-        if (s3Connected) {
-            console.log('✓ S3 connection successful');
-        } else {
-            console.warn('⚠ S3 connection failed - file operations may not work');
-        }
-
-        // Start server
+        // Start server FIRST (don't wait for DB)
         const server = app.listen(config.PORT, () => {
             console.log(`✓ Server running on port ${config.PORT}`);
             console.log(`✓ API available at http://localhost:${config.PORT}`);
             console.log(`✓ Health check: http://localhost:${config.PORT}/health`);
         });
+
+        // Initialize database in background (don't block server startup)
+        initializeDatabase()
+            .then(() => {
+                console.log('✓ Database initialization complete');
+            })
+            .catch(err => {
+                console.error('⚠ Database initialization failed:', err.message);
+                console.log('⚠ Server will continue without database schema');
+            });
+
+        // Test S3 connection in background
+        testConnection()
+            .then(s3Connected => {
+                if (s3Connected) {
+                    console.log('✓ Storage connection successful');
+                } else {
+                    console.warn('⚠ Storage connection failed - file operations may not work');
+                }
+            })
+            .catch(err => {
+                console.error('⚠ Storage test error:', err.message);
+            });
 
         // Graceful shutdown handler
         const gracefulShutdown = async (signal) => {
@@ -536,37 +572,21 @@ async function startServer() {
         process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
         process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
-        // Schedule audit log cleanup (daily at 2 AM)
-        const scheduleCleanup = () => {
-            const now = new Date();
-            const nextRun = new Date(
-                now.getFullYear(),
-                now.getMonth(),
-                now.getDate() + 1,
-                2, 0, 0, 0
-            );
-            const timeout = nextRun.getTime() - now.getTime();
+        // Handle uncaught errors
+        process.on('uncaughtException', (error) => {
+            console.error('❌ Uncaught Exception:', error);
+        });
 
-            setTimeout(async () => {
-                try {
-                    console.log('Running scheduled audit log cleanup...');
-                    const deleted = await cleanupOldLogs(config.audit.retention_days);
-                    console.log(`✓ Cleaned up ${deleted} old audit logs`);
-                } catch (error) {
-                    console.error('Audit cleanup error:', error);
-                }
-                scheduleCleanup(); // Schedule next cleanup
-            }, timeout);
-        };
-
-        scheduleCleanup();
-        console.log('✓ Scheduled daily audit log cleanup');
+        process.on('unhandledRejection', (reason, promise) => {
+            console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+        });
 
     } catch (error) {
         console.error('❌ Server initialization failed:', error);
         process.exit(1);
     }
 }
+
 
 // Start server if this is the main module
 if (require.main === module) {

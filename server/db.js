@@ -1,26 +1,4 @@
 /**
- * Database connection and schema initialization
- */
-const { Pool } = require('pg');
-const config = require('./config');
-
-// Create connection pool
-const pool = new Pool(
-    config.database.connectionString
-        ? { connectionString: config.database.connectionString, ssl: config.database.ssl }
-        : config.database
-);
-// Test connection on startup
-pool.on('connect', () => {
-    console.log('✓ Database connection established');
-});
-
-pool.on('error', (err) => {
-    console.error('Unexpected database error:', err);
-    process.exit(-1);
-});
-
-/**
  * Initialize database schema
  * Creates all necessary tables and indexes
  */
@@ -28,14 +6,14 @@ async function initializeDatabase() {
     const client = await pool.connect();
 
     try {
+        console.log('[DB] Starting database initialization...');
+
         await client.query('BEGIN');
 
-        console.log('Creating database schema...');
-
-        // Enable UUID extension
+        console.log('[DB] Creating UUID extension...');
         await client.query('CREATE EXTENSION IF NOT EXISTS "pgcrypto"');
 
-        // Users table - stores user accounts and encryption keys
+        console.log('[DB] Creating users table...');
         await client.query(`
       CREATE TABLE IF NOT EXISTS users (
         user_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -51,7 +29,7 @@ async function initializeDatabase() {
       )
     `);
 
-        // Files table - stores encrypted file metadata
+        console.log('[DB] Creating files table...');
         await client.query(`
       CREATE TABLE IF NOT EXISTS files (
         file_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -71,7 +49,7 @@ async function initializeDatabase() {
       )
     `);
 
-        // File shares table - manages file sharing between users
+        console.log('[DB] Creating file_shares table...');
         await client.query(`
       CREATE TABLE IF NOT EXISTS file_shares (
         share_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -87,7 +65,7 @@ async function initializeDatabase() {
       )
     `);
 
-        // Audit logs table - comprehensive security and performance tracking
+        console.log('[DB] Creating audit_logs table...');
         await client.query(`
       CREATE TABLE IF NOT EXISTS audit_logs (
         log_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -112,7 +90,7 @@ async function initializeDatabase() {
       )
     `);
 
-        // File versions table - tracks file history
+        console.log('[DB] Creating file_versions table...');
         await client.query(`
       CREATE TABLE IF NOT EXISTS file_versions (
         version_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -128,7 +106,7 @@ async function initializeDatabase() {
       )
     `);
 
-        // Session tokens table - manages user authentication
+        console.log('[DB] Creating sessions table...');
         await client.query(`
       CREATE TABLE IF NOT EXISTS sessions (
         session_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -140,77 +118,23 @@ async function initializeDatabase() {
       )
     `);
 
-        // Create performance indexes
-        console.log('Creating indexes...');
+        console.log('[DB] Creating indexes...');
         await client.query(`
       CREATE INDEX IF NOT EXISTS idx_files_owner ON files(owner_id) WHERE is_deleted = FALSE;
-      CREATE INDEX IF NOT EXISTS idx_files_created ON files(created_at DESC);
-      CREATE INDEX IF NOT EXISTS idx_file_shares_file ON file_shares(file_id);
-      CREATE INDEX IF NOT EXISTS idx_file_shares_recipient ON file_shares(recipient_id) WHERE is_active = TRUE;
-      CREATE INDEX IF NOT EXISTS idx_audit_logs_user ON audit_logs(user_id);
-      CREATE INDEX IF NOT EXISTS idx_audit_logs_file ON audit_logs(file_id);
-      CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp ON audit_logs(timestamp DESC);
-      CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs(action);
-      CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
       CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token_hash);
-      CREATE INDEX IF NOT EXISTS idx_file_versions_file ON file_versions(file_id, version_number DESC);
+      CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp ON audit_logs(timestamp DESC);
     `);
 
         await client.query('COMMIT');
-        console.log('✓ Database schema initialized successfully');
+        console.log('[DB] ✓ Database schema initialized successfully');
+
+        return true;
 
     } catch (error) {
         await client.query('ROLLBACK');
-        console.error('Database initialization error:', error);
+        console.error('[DB] ✗ Database initialization error:', error.message);
         throw error;
     } finally {
         client.release();
     }
 }
-
-/**
- * Query helper with error handling
- */
-async function query(text, params) {
-    try {
-        const result = await pool.query(text, params);
-        return result;
-    } catch (error) {
-        console.error('Database query error:', error);
-        throw error;
-    }
-}
-
-/**
- * Transaction helper
- */
-async function transaction(callback) {
-    const client = await pool.connect();
-    try {
-        await client.query('BEGIN');
-        const result = await callback(client);
-        await client.query('COMMIT');
-        return result;
-    } catch (error) {
-        await client.query('ROLLBACK');
-        throw error;
-    } finally {
-        client.release();
-    }
-}
-
-/**
- * Graceful shutdown
- */
-async function closePool() {
-    await pool.end();
-    console.log('✓ Database connection pool closed');
-}
-
-module.exports = {
-    pool,
-    query,
-    transaction,
-    initializeDatabase,
-    closePool,
-};
