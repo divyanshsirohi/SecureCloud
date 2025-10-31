@@ -9,7 +9,7 @@ class CryptoManager {
     }
 
     /**
-     * Generate RSA key pair
+     * Generate RSA key pair for encryption and key wrapping
      */
     async generateRSAKeyPair() {
         const keyPair = await this.subtle.generateKey(
@@ -25,6 +25,25 @@ class CryptoManager {
 
         return keyPair;
     }
+
+    /**
+     * Generate RSA signing key pair (separate from encryption keys)
+     */
+    async generateRSASigningKeyPair() {
+        const keyPair = await this.subtle.generateKey(
+            {
+                name: 'RSA-PSS',
+                modulusLength: CONFIG.ENCRYPTION.RSA_KEY_SIZE,
+                publicExponent: new Uint8Array([1, 0, 1]),
+                hash: 'SHA-256',
+            },
+            true,
+            ['sign', 'verify']
+        );
+
+        return keyPair;
+    }
+
 
     /**
      * Export public key to PEM format

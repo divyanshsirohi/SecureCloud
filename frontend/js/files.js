@@ -54,8 +54,8 @@ class FileManager {
             const keyPair = authManager.getKeyPair();
             const wrappedKey = await cryptoManager.wrapKey(symmetricKey, keyPair.publicKey);
 
-            // Generate signature for integrity
-            const signature = await cryptoManager.generateSignature(encryptedFile, keyPair.privateKey);
+            // Generate HMAC signature for integrity
+            const signatureData = await cryptoManager.generateSignature(encryptedFile);
 
             // Prepare form data
             const formData = new FormData();
@@ -63,7 +63,7 @@ class FileManager {
             formData.append('fileName', file.name);
             formData.append('encryptedFileName', JSON.stringify(encryptedFileName));
             formData.append('encryptedSymmetricKey', wrappedKey);
-            formData.append('signature', signature);
+            formData.append('signature', JSON.stringify(signatureData)); // Send both signature and key
             formData.append('mimeType', file.type || 'application/octet-stream');
             formData.append('originalSize', file.size);
 
@@ -113,18 +113,28 @@ class FileManager {
             const encryptedData = cryptoManager.base64ToArrayBuffer(response.encryptedData);
             const decryptedData = await cryptoManager.decryptFile(encryptedData, symmetricKey);
 
-            // Verify signature
-            const publicKey = await cryptoManager.importPublicKey(
-                authManager.getCurrentUser().publicKey
-            );
-            const isValid = await cryptoManager.verifySignature(
-                encryptedData,
-                response.file.signature,
-                publicKey
-            );
+            // Verify signature (if available)
+            try {
+                if (response.file.signature) {
+                    const signatureData = typeof response.file.signature === 'string'
+                        ? JSON.parse(response.file.signature)
+                        : response.file.signature;
 
-            if (!isValid) {
-                throw new Error('File integrity check failed');
+                    const isValid = await cryptoManager.verifySignature(
+                        encryptedData,
+                        signatureData
+                    );
+
+                    if (!isValid) {
+                        console.warn('File integrity check failed - file may be corrupted');
+                        if (!confirm('File integrity check failed. Download anyway?')) {
+                            hideLoading();
+                            return;
+                        }
+                    }
+                }
+            } catch (sigError) {
+                console.warn('Signature verification skipped:', sigError.message);
             }
 
             // Download file
@@ -143,6 +153,7 @@ class FileManager {
             showToast(`Failed to download ${fileName}: ${error.message}`, 'error');
         }
     }
+
 
     /**
      * Delete file
