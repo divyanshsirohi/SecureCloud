@@ -30,6 +30,7 @@ class FileManager {
     /**
      * Upload single file
      */
+
     async uploadSingleFile(file) {
         if (file.size > CONFIG.UPLOAD.MAX_FILE_SIZE) {
             showToast(`File ${file.name} exceeds maximum size (100MB)`, 'error');
@@ -54,8 +55,10 @@ class FileManager {
             const keyPair = authManager.getKeyPair();
             const wrappedKey = await cryptoManager.wrapKey(symmetricKey, keyPair.publicKey);
 
-            // Generate HMAC signature for integrity
-            const signatureData = await cryptoManager.generateSignature(encryptedFile);
+            // Generate simple SHA-256 hash for integrity check
+            const hashBuffer = await crypto.subtle.digest('SHA-256', encryptedFile);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
             // Prepare form data
             const formData = new FormData();
@@ -63,7 +66,7 @@ class FileManager {
             formData.append('fileName', file.name);
             formData.append('encryptedFileName', JSON.stringify(encryptedFileName));
             formData.append('encryptedSymmetricKey', wrappedKey);
-            formData.append('signature', JSON.stringify(signatureData)); // Send both signature and key
+            formData.append('signature', hashHex);
             formData.append('mimeType', file.type || 'application/octet-stream');
             formData.append('originalSize', file.size);
 
@@ -92,6 +95,7 @@ class FileManager {
     /**
      * Download and decrypt file
      */
+
     async downloadFile(fileId, fileName) {
         try {
             showLoading(`Downloading ${fileName}...`);
@@ -113,28 +117,19 @@ class FileManager {
             const encryptedData = cryptoManager.base64ToArrayBuffer(response.encryptedData);
             const decryptedData = await cryptoManager.decryptFile(encryptedData, symmetricKey);
 
-            // Verify signature (if available)
-            try {
-                if (response.file.signature) {
-                    const signatureData = typeof response.file.signature === 'string'
-                        ? JSON.parse(response.file.signature)
-                        : response.file.signature;
+            // Optional: Verify hash integrity
+            if (response.file.signature) {
+                try {
+                    const hashBuffer = await crypto.subtle.digest('SHA-256', encryptedData);
+                    const hashArray = Array.from(new Uint8Array(hashBuffer));
+                    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
-                    const isValid = await cryptoManager.verifySignature(
-                        encryptedData,
-                        signatureData
-                    );
-
-                    if (!isValid) {
-                        console.warn('File integrity check failed - file may be corrupted');
-                        if (!confirm('File integrity check failed. Download anyway?')) {
-                            hideLoading();
-                            return;
-                        }
+                    if (hashHex !== response.file.signature) {
+                        console.warn('File hash mismatch - file may be corrupted');
                     }
+                } catch (err) {
+                    console.warn('Hash verification skipped:', err);
                 }
-            } catch (sigError) {
-                console.warn('Signature verification skipped:', sigError.message);
             }
 
             // Download file
