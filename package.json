@@ -6,7 +6,6 @@
   "scripts": {
     "start": "node server/server.js",
     "dev": "nodemon server/server.js",
-    "postinstall": "node -e \"require('./server/db').initializeDatabase().catch(() => {})\"",
     "build": "echo 'No build needed'"
   },
   "dependencies": {
