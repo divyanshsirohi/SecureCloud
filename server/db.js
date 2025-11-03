@@ -1,3 +1,27 @@
+// db.js
+const { Pool } = require('pg');
+
+// Database connection pool
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.NODE_ENV === 'production' ? {
+    rejectUnauthorized: false
+  } : false,
+  max: 20, // maximum number of clients in the pool
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000,
+});
+
+// Test connection
+pool.on('connect', () => {
+  console.log('[DB] Connected to PostgreSQL database');
+});
+
+pool.on('error', (err) => {
+  console.error('[DB] Unexpected error on idle client', err);
+  process.exit(-1);
+});
+
 /**
  * Initialize database schema
  * Creates all necessary tables and indexes
@@ -138,3 +162,10 @@ async function initializeDatabase() {
         client.release();
     }
 }
+
+// CRITICAL: Export the function and pool
+module.exports = {
+  pool,
+  initializeDatabase,
+  // Add any other database functions you have
+};
