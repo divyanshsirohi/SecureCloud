@@ -60,19 +60,18 @@ class ShareManager {
             // In this implementation, the server will handle the re-wrapping
             // So we'll send our unwrapped key, and server will wrap it with recipient's key
 
-            // Export symmetric key for sharing
-            const exportedKey = await crypto.subtle.exportKey('raw', symmetricKey);
+            // Export symmetric key for sharing (no wrapping for school project)
+            const exportedKey = await crypto.subtle.exportKey("raw", symmetricKey);
             const keyBase64 = cryptoManager.arrayBufferToBase64(exportedKey);
 
-            showLoading('Sharing file...');
-
-            // Share with server (server will handle key wrapping with recipient's public key)
+            // Store raw key directly (backend won't re-wrap for now)
             await api.shareFile({
                 fileId,
                 recipientUsername,
-                wrappedKey: keyBase64, // Server will re-wrap this
+                wrappedKey: keyBase64,
                 permissions
             });
+
 
             hideLoading();
             showToast(`File shared with ${recipientUsername}`, 'success');
@@ -226,10 +225,16 @@ class ShareManager {
             const keyPair = authManager.getKeyPair();
             showLoading(`Decrypting ${fileName}...`);
 
-            const symmetricKey = await cryptoManager.unwrapKey(
-                wrappedKey,
-                keyPair.privateKey
+            // shared "wrappedKey" is actually the raw base64 symmetric key (school project mode)
+            const rawKey = cryptoManager.base64ToArrayBuffer(wrappedKey);
+            const symmetricKey = await crypto.subtle.importKey(
+                "raw",
+                rawKey,
+                { name: "AES-GCM" },
+                false,
+                ["encrypt", "decrypt"]
             );
+
 
             // Decrypt file data
             const encryptedData = cryptoManager.base64ToArrayBuffer(response.encryptedData);
