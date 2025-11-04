@@ -12,7 +12,7 @@ const fsSync = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { Readable } = require('stream');
-const config = require('../config/config');
+const config = require('../config');
 
 // Storage provider configuration
 const STORAGE_PROVIDER = config.aws.storageProvider || 'local';
