@@ -245,9 +245,6 @@ class FileManager {
                     <button class="btn btn-small btn-secondary" onclick="shareManager.openShareModal('${file.file_id}', '${this.escapeHtml(file.file_name)}')">
                         🔗 Share
                     </button>
-                    <button class="btn btn-small btn-secondary" onclick="fileManager.showVersions('${file.file_id}')">
-                        📋 Versions
-                    </button>
                     <button class="btn btn-small btn-danger" onclick="fileManager.deleteFile('${file.file_id}', '${this.escapeHtml(file.file_name)}')">
                         🗑️ Delete
                     </button>
@@ -296,40 +293,6 @@ class FileManager {
                 Next
             </button>
         `;
-    }
-
-    /**
-     * Show file versions
-     */
-    async showVersions(fileId) {
-        try {
-            showLoading('Loading versions...');
-            const response = await api.getFileVersions(fileId);
-            hideLoading();
-
-            const modal = document.getElementById('versions-modal');
-            const versionsList = document.getElementById('versions-list');
-
-            versionsList.innerHTML = response.versions.map(version => `
-                <div class="file-item">
-                    <div class="file-info">
-                        <div class="file-name">Version ${version.version_number}</div>
-                        <div class="file-meta">
-                            <span>${this.formatFileSize(version.file_size)}</span>
-                            <span>${this.formatDate(version.created_at)}</span>
-                            <span>by ${version.created_by_username || 'Unknown'}</span>
-                        </div>
-                    </div>
-                </div>
-            `).join('');
-
-            modal.classList.add('active');
-
-        } catch (error) {
-            hideLoading();
-            console.error('Load versions error:', error);
-            showToast('Failed to load versions', 'error');
-        }
     }
 
     /**
