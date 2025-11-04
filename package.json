@@ -1,15 +1,15 @@
 {
-  "name": "secure-cloud-storage",
-  "version": "1.0.0",
-  "description": "End-to-end encrypted cloud storage",
+  "name": "secure-cloud-backend",
+  "version": "1.1.0",
+  "description": "End-to-end encrypted cloud storage backend",
   "main": "server/server.js",
   "scripts": {
     "start": "node server/server.js",
     "dev": "nodemon server/server.js",
-    "build": "echo 'No build needed'"
+    "build": "echo 'No build step for backend'"
   },
   "dependencies": {
-    "express": "^4.18.2",
+    "express": "^4.21.0",
     "cors": "^2.8.5",
     "helmet": "^7.1.0",
     "compression": "^1.7.4",
@@ -25,7 +25,7 @@
     "nodemon": "^3.0.2"
   },
   "engines": {
-    "node": "18.x",
-    "npm": ">=9.0.0"
+    "node": "20.x",
+    "npm": ">=10.0.0"
   }
 }
