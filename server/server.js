@@ -25,23 +25,18 @@ app.set('trust proxy', 1);
 // SECURITY, CORS, BODY PARSING, LOGGING
 // ============================================
 
-app.use(
-    helmet({
-        contentSecurityPolicy: {
-            directives: {
-                defaultSrc: ["'self'"],
-                styleSrc: ["'self'", "'unsafe-inline'"],
-                scriptSrc: ["'self'"],
-                imgSrc: ["'self'", "data:", "https:"],
-            },
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // PATCHY FIX
+            scriptSrcAttr: ["'unsafe-inline'"], // Allow onclick="", etc.
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            imgSrc: ["'self'", "data:", "https:"],
         },
-        hsts: {
-            maxAge: 31536000,
-            includeSubDomains: true,
-            preload: true,
-        },
-    })
-);
+    },
+}));
+
 
 app.use(
     cors({
@@ -105,58 +100,98 @@ app.use('/api/files', filesRoutes);
 app.use('/api/shares', sharesRoutes);
 
 // ------- AUDIT LOG ROUTES -------
+
 app.get('/api/audit', authenticate, async (req, res) => {
     try {
-        const { page = 1, limit = 50, action, startDate, endDate } = req.query;
+        const {
+            page = 1,
+            limit = 50,
+            action,
+            startDate,
+            endDate
+        } = req.query;
+
         const offset = (page - 1) * limit;
 
+        // Build dynamic conditions
         let conditions = ['user_id = $1'];
-        let params = [req.user.userId, limit, offset];
-        let paramIndex = 4;
+        let params = [req.user.userId];
+        let paramIndex = 2;
 
         if (action) {
-            conditions.push(`action = $${paramIndex}`);
+            conditions.push(`action = $${paramIndex}::text`);
             params.push(action);
             paramIndex++;
         }
+
         if (startDate) {
-            conditions.push(`timestamp >= $${paramIndex}`);
+            conditions.push(`timestamp >= $${paramIndex}::timestamptz`);
             params.push(startDate);
             paramIndex++;
         }
+
         if (endDate) {
-            conditions.push(`timestamp <= $${paramIndex}`);
+            conditions.push(`timestamp <= $${paramIndex}::timestamptz`);
             params.push(endDate);
             paramIndex++;
         }
 
-        const whereClause = conditions.join(' AND');
+        const whereClause = conditions.join(' AND ');
 
-        const logsResult = await pool.query(`
-            SELECT log_id, action, timestamp, ip_address, encryption_time_ms,
-                   decryption_time_ms, key_generation_time_ms, avalanche_effect_percentage,
-                   collision_resistance_score, file_size_bytes, success, error_message, metadata
+        // Add pagination params at end
+        params.push(limit, offset);
+
+        const logsQuery = `
+            SELECT 
+                log_id,
+                action,
+                timestamp,
+                ip_address,
+                encryption_time_ms,
+                decryption_time_ms,
+                key_generation_time_ms,
+                avalanche_effect_percentage,
+                collision_resistance_score,
+                file_size_bytes,
+                success,
+                error_message,
+                metadata
             FROM audit_logs
             WHERE ${whereClause}
             ORDER BY timestamp DESC
-            LIMIT $2 OFFSET $3
-        `, params);
+            LIMIT $${params.length - 1} OFFSET $${params.length}
+        `;
 
-        const total = (
-            await pool.query(`SELECT COUNT(*) AS total FROM audit_logs WHERE ${whereClause}`, params.slice(0, paramIndex - 1))
-        ).rows[0].total;
+        const logsResult = await pool.query(logsQuery, params);
+
+        // Count query params
+        const countParams = params.slice(0, paramIndex - 1);
+        const countQuery = `
+            SELECT COUNT(*) as total
+            FROM audit_logs
+            WHERE ${whereClause}
+        `;
+        const countResult = await pool.query(countQuery, countParams);
+
+        const total = parseInt(countResult.rows[0].total);
+        const totalPages = Math.ceil(total / limit);
 
         res.json({
             logs: logsResult.rows,
             pagination: {
                 page: parseInt(page),
                 limit: parseInt(limit),
-                total: parseInt(total),
-                totalPages: Math.ceil(total / limit),
-            },
+                total,
+                totalPages
+            }
         });
+
     } catch (error) {
-        res.status(500).json({ error: 'Failed to retrieve audit logs', code: 'GET_AUDIT_ERROR' });
+        console.error('Get audit logs error:', error);
+        res.status(500).json({
+            error: 'Failed to retrieve audit logs',
+            code: 'GET_AUDIT_ERROR'
+        });
     }
 });
 
