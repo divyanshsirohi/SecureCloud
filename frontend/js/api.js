@@ -1,6 +1,6 @@
 /**
  * API Communication Module
- * Handles all HTTP requests to the backend
+ * EASY MODE for school project (localStorage token + credentials)
  */
 
 class API {
@@ -22,14 +22,12 @@ class API {
     }
 
     /**
-     * Get authorization headers
+     * Build headers
      */
     getHeaders(includeAuth = true, contentType = 'application/json') {
         const headers = {};
 
-        if (contentType) {
-            headers['Content-Type'] = contentType;
-        }
+        if (contentType) headers['Content-Type'] = contentType;
 
         if (includeAuth && this.token) {
             headers['Authorization'] = `Bearer ${this.token}`;
@@ -39,7 +37,7 @@ class API {
     }
 
     /**
-     * Generic request method
+     * Generic request handler
      */
     async request(endpoint, options = {}) {
         const url = `${this.baseURL}${endpoint}`;
@@ -47,13 +45,13 @@ class API {
         try {
             const response = await fetch(url, {
                 ...options,
+                credentials: "include", // ✅ important for Render
                 headers: {
                     ...this.getHeaders(options.auth !== false, options.contentType),
                     ...options.headers,
                 },
             });
 
-            // Handle non-JSON responses
             const contentType = response.headers.get('content-type');
             let data;
 
@@ -78,11 +76,9 @@ class API {
         }
     }
 
-    // ============================================
-    // AUTHENTICATION ENDPOINTS
-    // ============================================
+    // ========== AUTH ==========
 
-    async register(userData) {
+    register(userData) {
         return this.request('/auth/register', {
             method: 'POST',
             body: JSON.stringify(userData),
@@ -90,7 +86,7 @@ class API {
         });
     }
 
-    async login(credentials) {
+    login(credentials) {
         return this.request('/auth/login', {
             method: 'POST',
             body: JSON.stringify(credentials),
@@ -98,54 +94,46 @@ class API {
         });
     }
 
-    async logout() {
-        return this.request('/auth/logout', {
-            method: 'POST',
-        });
+    logout() {
+        return this.request('/auth/logout', { method: 'POST' });
     }
 
-    async getCurrentUser() {
+    getCurrentUser() {
         return this.request('/auth/me');
     }
 
-    async refreshToken() {
-        return this.request('/auth/refresh', {
-            method: 'POST',
-        });
+    refreshToken() {
+        return this.request('/auth/refresh', { method: 'POST' });
     }
 
-    // ============================================
-    // FILE ENDPOINTS
-    // ============================================
+    // ========== FILES ==========
 
-    async uploadFile(formData) {
+    uploadFile(formData) {
         return this.request('/files/upload', {
             method: 'POST',
             body: formData,
-            contentType: null, // Let browser set multipart/form-data
+            contentType: null,
         });
     }
 
-    async listFiles(params = {}) {
-        const queryString = new URLSearchParams(params).toString();
-        return this.request(`/files${queryString ? '?' + queryString : ''}`);
+    listFiles(params = {}) {
+        const query = new URLSearchParams(params).toString();
+        return this.request(`/files${query ? '?' + query : ''}`);
     }
 
-    async downloadFile(fileId) {
+    downloadFile(fileId) {
         return this.request(`/files/${fileId}`);
     }
 
-    async deleteFile(fileId, permanent = false) {
-        return this.request(`/files/${fileId}?permanent=${permanent}`, {
-            method: 'DELETE',
-        });
+    deleteFile(fileId, permanent = false) {
+        return this.request(`/files/${fileId}?permanent=${permanent}`, { method: 'DELETE' });
     }
 
-    async getFileVersions(fileId) {
+    getFileVersions(fileId) {
         return this.request(`/files/${fileId}/versions`);
     }
 
-    async createFileVersion(fileId, formData) {
+    createFileVersion(fileId, formData) {
         return this.request(`/files/${fileId}/versions`, {
             method: 'POST',
             body: formData,
@@ -153,79 +141,68 @@ class API {
         });
     }
 
-    // ============================================
-    // SHARE ENDPOINTS
-    // ============================================
+    // ========== SHARES ==========
 
-    async shareFile(shareData) {
+    shareFile(shareData) {
         return this.request('/shares', {
             method: 'POST',
             body: JSON.stringify(shareData),
         });
     }
 
-    async getSharedFiles(type = 'received', params = {}) {
-        const queryString = new URLSearchParams(params).toString();
-        return this.request(`/shares/${type}${queryString ? '?' + queryString : ''}`);
+    getSharedFiles(type = 'received', params = {}) {
+        const query = new URLSearchParams(params).toString();
+        return this.request(`/shares/${type}${query ? '?' + query : ''}`);
     }
 
-    async getFileShares(fileId) {
+    getFileShares(fileId) {
         return this.request(`/shares/file/${fileId}`);
     }
 
-    async updateShare(shareId, permissions) {
+    updateShare(shareId, permissions) {
         return this.request(`/shares/${shareId}`, {
             method: 'PATCH',
             body: JSON.stringify({ permissions }),
         });
     }
 
-    async revokeShare(shareId) {
-        return this.request(`/shares/${shareId}`, {
-            method: 'DELETE',
-        });
+    revokeShare(shareId) {
+        return this.request(`/shares/${shareId}`, { method: 'DELETE' });
     }
 
-    async getShareStats() {
+    getShareStats() {
         return this.request('/shares/stats');
     }
 
-    // ============================================
-    // AUDIT ENDPOINTS
-    // ============================================
+    // ========== AUDIT ==========
 
-    async getAuditLogs(params = {}) {
-        const queryString = new URLSearchParams(params).toString();
-        return this.request(`/audit${queryString ? '?' + queryString : ''}`);
+    getAuditLogs(params = {}) {
+        const query = new URLSearchParams(params).toString();
+        return this.request(`/audit${query ? '?' + query : ''}`);
     }
 
-    async exportAuditLogs(params = {}) {
-        const queryString = new URLSearchParams(params).toString();
-        const url = `${this.baseURL}/audit/export${queryString ? '?' + queryString : ''}`;
+    exportAuditLogs(params = {}) {
+        const query = new URLSearchParams(params).toString();
+        const url = `${this.baseURL}/audit/export${query ? '?' + query : ''}`;
 
-        // Download file
         const link = document.createElement('a');
         link.href = url;
         link.download = `audit-logs-${Date.now()}.csv`;
         link.click();
     }
 
-    // ============================================
-    // STATISTICS ENDPOINTS
-    // ============================================
+    // ========== STATS ==========
 
-    async getStats() {
+    getStats() {
         return this.request('/stats');
     }
 
-    // ============================================
-    // HEALTH CHECK
-    // ============================================
+    // ========== HEALTH ==========
 
-    async healthCheck() {
+    healthCheck() {
         return this.request('/health', { auth: false });
     }
 }
 
-// Create global API instance
+// Global API instance
 const api = new API(CONFIG.API_BASE_URL);

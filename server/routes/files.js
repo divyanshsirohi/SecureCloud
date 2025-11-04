@@ -231,7 +231,7 @@ router.post('/upload', authenticate, uploadLimiter, upload.single('file'), async
 
 /**
  * GET /files
- * List user's files
+ * List user's files (PATCHY FIX)
  */
 router.get('/', authenticate, async (req, res) => {
     try {
@@ -245,38 +245,42 @@ router.get('/', authenticate, async (req, res) => {
 
         const offset = (page - 1) * limit;
 
-        // Build search condition
         let searchCondition = '';
-        let queryParams = [req.user.userId, limit, offset];
+        let queryParams = [req.user.userId];
 
         if (search) {
-            searchCondition = 'AND file_name ILIKE $4';
+            searchCondition = `AND file_name ILIKE $2::text`;
             queryParams.push(`%${search}%`);
         }
 
-        // Get files with pagination
-        const filesResult = await pool.query(`
-      SELECT 
-        file_id,
-        file_name,
-        file_size,
-        encrypted_size,
-        mime_type,
-        version,
-        created_at,
-        updated_at
-      FROM files
-      WHERE owner_id = $1 AND is_deleted = FALSE ${searchCondition}
-      ORDER BY ${sortBy} ${sortOrder}
-      LIMIT $2 OFFSET $3
-    `, queryParams);
+        // Pagination params always go last
+        queryParams.push(limit, offset);
 
-        // Get total count
+        const filesResult = await pool.query(`
+            SELECT
+                file_id,
+                file_name,
+                file_size,
+                encrypted_size,
+                mime_type,
+                version,
+                created_at,
+                updated_at
+            FROM files
+            WHERE owner_id = $1 AND is_deleted = FALSE ${searchCondition}
+            ORDER BY ${sortBy} ${sortOrder}
+                LIMIT $${queryParams.length - 1} OFFSET $${queryParams.length}
+        `, queryParams);
+
+        // Count query params
+        const countParams = search ? [req.user.userId, `%${search}%`] : [req.user.userId];
+
         const countResult = await pool.query(`
-      SELECT COUNT(*) as total
-      FROM files
-      WHERE owner_id = $1 AND is_deleted = FALSE ${searchCondition}
-    `, searchCondition ? [req.user.userId, `%${search}%`] : [req.user.userId]);
+            SELECT COUNT(*) as total
+            FROM files
+            WHERE owner_id = $1 AND is_deleted = FALSE
+            ${search ? 'AND file_name ILIKE $2::text' : ''}
+        `, countParams);
 
         const total = parseInt(countResult.rows[0].total);
         const totalPages = Math.ceil(total / limit);
@@ -299,6 +303,7 @@ router.get('/', authenticate, async (req, res) => {
         });
     }
 });
+
 
 /**
  * GET /files/:fileId
