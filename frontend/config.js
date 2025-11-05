@@ -5,7 +5,7 @@ const CONFIG = {
     ENCRYPTION: {
         RSA_KEY_SIZE: 2048,
         AES_KEY_SIZE: 256,
-        PBKDF2_ITERATIONS: 100000,
+        PBKDF2_ITERATIONS: 500000,
     },
 
     UPLOAD: {
