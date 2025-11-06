@@ -4,7 +4,7 @@
  */
 
 const { pool } = require('../db');
-const SecurityMetrics = require('../utils/SecurityMetrics'); // make sure path matches your project
+const SecurityMetrics = require('../utils/securityMetrics'); // make sure path matches your project
 
 /**
  * Request logging middleware (low impact)
