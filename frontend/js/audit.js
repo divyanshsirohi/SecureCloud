@@ -48,15 +48,30 @@ class AuditManager {
 
         if (this.currentLogs.length === 0) {
             container.innerHTML = `
-                <div class="empty-state">
-                    <div class="empty-state-icon">📊</div>
-                    <p>No audit logs found</p>
-                </div>
-            `;
+            <div class="empty-state">
+                <div class="empty-state-icon">📊</div>
+                <p>No audit logs found</p>
+            </div>
+        `;
             return;
         }
 
-        container.innerHTML = this.currentLogs.map(log => `
+        container.innerHTML = this.currentLogs.map(log => {
+            const parts = [];
+
+            if (log.encryption_time_ms) parts.push(`Enc: ${log.encryption_time_ms}ms`);
+            if (log.decryption_time_ms) parts.push(`Dec: ${log.decryption_time_ms}ms`);
+            if (log.key_generation_time_ms) parts.push(`KeyGen: ${log.key_generation_time_ms}ms`);
+            if (log.signature_verification_time_ms) parts.push(`Sig: ${log.signature_verification_time_ms}ms`);
+            if (log.file_size_bytes) parts.push(this.formatBytes(log.file_size_bytes));
+            if (log.encryption_algorithm) parts.push(log.encryption_algorithm);
+            if (log.key_size) parts.push(`${log.key_size}-bit`);
+            if (log.avalanche_effect_percentage) parts.push(`Aval: ${log.avalanche_effect_percentage}%`);
+            if (log.collision_resistance_score) parts.push(`ColRes: ${log.collision_resistance_score}`);
+
+            const metricsLine = parts.join(' • ');
+
+            return `
             <div class="audit-item">
                 <div class="audit-icon">
                     ${this.getActionIcon(log.action)}
@@ -64,10 +79,10 @@ class AuditManager {
                 <div class="audit-info">
                     <h4>${this.formatAction(log.action)}</h4>
                     <div class="audit-meta">
-                        ${this.formatDate(log.timestamp)} • 
-                        ${log.encryption_time_ms ? `${log.encryption_time_ms}ms` : ''} •
-                        ${log.ip_address || 'Unknown IP'}
-                        ${log.avalanche_effect_percentage ? ` • Avalanche: ${log.avalanche_effect_percentage}%` : ''}
+                        ${this.formatDate(log.timestamp)} • ${log.ip_address || 'Unknown IP'}
+                    </div>
+                    <div class="audit-metrics">
+                        ${metricsLine}
                     </div>
                     ${log.error_message ? `<small style="color: var(--error);">${log.error_message}</small>` : ''}
                 </div>
@@ -75,8 +90,17 @@ class AuditManager {
                     ${log.success ? '✓ Success' : '✗ Failed'}
                 </div>
             </div>
-        `).join('');
+        `;
+        }).join('');
     }
+
+    formatBytes(bytes) {
+        if (bytes === 0) return '0B';
+        const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(1024));
+        return `${(bytes / Math.pow(1024, i)).toFixed(2)}${sizes[i]}`;
+    }
+
 
     /**
      * Export audit logs as CSV
