@@ -43,6 +43,9 @@ class AuditManager {
     /**
      * Render audit logs
      */
+    /**
+     * Render audit logs
+     */
     renderAuditLogs() {
         const container = document.getElementById('audit-logs-list');
 
@@ -71,6 +74,37 @@ class AuditManager {
 
             const metricsLine = parts.join(' • ');
 
+            // ==========================
+            // SECURITY METRICS & BADGES
+            // ==========================
+            const sec = log.metadata?.securityReport;
+            const securityBadges = [];
+
+            if (sec?.quality?.grade) {
+                const g = sec.quality.grade.toUpperCase();
+                const color = g === 'EXCELLENT' ? '#27ae60'
+                    : g === 'GOOD' ? '#2d8fdd'
+                        : g === 'ACCEPTABLE' ? '#f39c12'
+                            : '#e74c3c';
+                securityBadges.push(`<span style="color:${color};font-weight:600;">SEC: ${g}</span>`);
+            }
+
+            if (sec?.metrics?.cipherMode) {
+                securityBadges.push(sec.metrics.cipherMode);
+            }
+
+            if (sec?.metrics?.integrityProtected === false) {
+                securityBadges.push(`<span style="color:var(--error);">No Integrity!</span>`);
+            }
+
+            if (sec?.metrics?.nonceReuse?.reuseCount > 0) {
+                securityBadges.push(`<span style="color:var(--error);">Nonce Reuse</span>`);
+            }
+
+            const securityLine = securityBadges.length
+                ? `<div class="audit-security">${securityBadges.join(' • ')}</div>`
+                : '';
+
             return `
             <div class="audit-item">
                 <div class="audit-icon">
@@ -84,6 +118,7 @@ class AuditManager {
                     <div class="audit-metrics">
                         ${metricsLine}
                     </div>
+                    ${securityLine}
                     ${log.error_message ? `<small style="color: var(--error);">${log.error_message}</small>` : ''}
                 </div>
                 <div class="audit-status ${log.success ? 'success' : 'error'}">
@@ -93,6 +128,7 @@ class AuditManager {
         `;
         }).join('');
     }
+
 
     formatBytes(bytes) {
         if (bytes === 0) return '0B';
