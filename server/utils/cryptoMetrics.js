@@ -39,42 +39,50 @@ function calculateAvalancheEffect(original, modified) {
 }
 
 /**
- * Calculate collision resistance score
- * Measures entropy/randomness of hash output
- * Higher score indicates better collision resistance
- * Maximum: 8.0 (perfect randomness)
+ * Calculate collision resistance score using Chi-Square test for uniformity
+ * Score range: 0 - 100 (higher = better)
  *
  * @param {Buffer|string} data - Data to hash
- * @returns {number} Entropy score (0-8, higher is better)
+ * @returns {number} Collision resistance score
  */
 function calculateCollisionResistance(data) {
     try {
         const hash = crypto.createHash('sha256').update(data).digest();
 
-        // Calculate Shannon entropy
         const freq = new Array(256).fill(0);
+        const n = hash.length;
 
-        // Count byte frequencies
-        for (let i = 0; i < hash.length; i++) {
+        for (let i = 0; i < n; i++) {
             freq[hash[i]]++;
         }
 
-        // Calculate entropy
-        let entropy = 0;
+        // Expected frequency for uniform distribution
+        const expected = n / 256;
+
+        // Chi-Square calculation
+        let chiSquare = 0;
         for (let i = 0; i < 256; i++) {
-            if (freq[i] > 0) {
-                const p = freq[i] / hash.length;
-                entropy -= p * Math.log2(p);
-            }
+            const diff = freq[i] - expected;
+            chiSquare += (diff * diff) / expected;
         }
 
-        return entropy;
+        // Normalize score: lower chi-square = more uniform = more random
+        // Ideal Chi-square for uniform distribution with 255 df ~ 255
+        const ideal = 255;
+        let score = (ideal / chiSquare) * 100;
+
+        // Trim to 0–100 range
+        if (score > 100) score = 100;
+        if (score < 0) score = 0;
+
+        return parseFloat(score.toFixed(2));
 
     } catch (error) {
         console.error('Collision resistance calculation error:', error);
         return 0;
     }
 }
+
 
 /**
  * Analyze encryption quality of a buffer
