@@ -1,6 +1,5 @@
 /**
  * API Communication Module
- * EASY MODE for school project (localStorage token + credentials)
  */
 
 class API {
